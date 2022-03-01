@@ -301,7 +301,7 @@ class LoadStreams:
             # Start thread to read frames from video stream
             st = f'{i + 1}/{n}: {s}... '
             if 'youtube.com/' in s or 'youtu.be/' in s:  # if source is YouTube video
-                check_requirements(('pafy', 'youtube_dl==2020.12.2'))
+                check_requirements(('pafy', 'youtube_dl'))
                 import pafy
                 s = pafy.new(s).getbest(preftype="mp4").url  # YouTube URL
             s = eval(s) if s.isnumeric() else s  # i.e. s = '0' local webcam
@@ -328,13 +328,33 @@ class LoadStreams:
     def update(self, i, cap, stream):
         # Read stream `i` frames in daemon thread
         n, f, read = 0, self.frames[i], 1  # frame number, frame array, inference every 'read' frame
+##############################################################################
+        import pyrealsense2 as rs
+        # Configure depth (and color) streams
+        pipeline = rs.pipeline()
+        config = rs.config()
+        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        pipeline.start(config)
+        #print('||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||')
+##############################################################################
         while cap.isOpened() and n < f:
             n += 1
             # _, self.imgs[index] = cap.read()
-            cap.grab()
+##            cap.grab()
             if n % read == 0:
-                success, im = cap.retrieve()
-                if success:
+#############################################################################
+                # Wait for a coherent pair of frames: depth and color
+                frames = pipeline.wait_for_frames()
+                depth_frame = frames.get_depth_frame()
+                # Convert images to numpy arrays
+                depth_image = np.asanyarray(depth_frame.get_data())
+                # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+                im = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.195), cv2.COLORMAP_JET)
+                #print('---------------------------------------------------')
+                
+                #success, im = cap.retrieve()
+                if True:    # if success:
+#############################################################################
                     self.imgs[i] = im
                 else:
                     LOGGER.warning('WARNING: Video stream unresponsive, please check your IP camera connection.')
